@@ -1,10 +1,12 @@
-const User = require('../models/User');
-const Transaction = require('../models/Transaction');
+const { db } = require('../firebase');
 
 const getChildDetails = async (req, res) => {
   try {
-    const child = await User.findById(req.user.id).select('-password');
-    res.json(child);
+    const userDoc = await db.collection('users').doc(req.user.id).get();
+    const user = { id: userDoc.id, ...userDoc.data() };
+    delete user.password;
+    const walletDoc = await db.collection('wallets').doc(req.user.id).get();
+    res.json({ ...user, wallet: walletDoc.exists ? walletDoc.data().balance : 0 });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -13,15 +15,15 @@ const getChildDetails = async (req, res) => {
 const requestMoney = async (req, res) => {
   const { amount, description } = req.body;
   try {
-    const transaction = new Transaction({
-      userId: req.user.id,
+    await db.collection('requests').add({
+      childId: req.user.id,
+      parentId: req.user.parentId,
       amount: Number(amount),
       type: 'request',
       status: 'pending',
       description,
-      parentId: req.user.parentId
+      createdAt: new Date().toISOString()
     });
-    await transaction.save();
     res.json({ message: 'Request sent to parent' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -30,8 +32,8 @@ const requestMoney = async (req, res) => {
 
 const getMyTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json(transactions);
+    const snap = await db.collection('transactions').where('userId', '==', req.user.id).orderBy('createdAt', 'desc').get();
+    res.json(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

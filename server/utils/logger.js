@@ -1,17 +1,17 @@
-const ActivityLog = require('../models/ActivityLog');
+const { db } = require('../firebase');
 
 const logActivity = async (req, action, details = '') => {
   try {
-    const log = new ActivityLog({
+    await db.collection('activityLogs').add({
       userId: req.user ? req.user.id : null,
       action,
       details,
       ip: req.ip,
-      userAgent: req.get('User-Agent'),
+      userAgent: req.get ? req.get('User-Agent') : '',
+      createdAt: new Date().toISOString()
     });
-    await log.save();
   } catch (err) {
-    console.error('Logging Error:', err);
+    console.error('Logging Error:', err.message);
   }
 };
 
