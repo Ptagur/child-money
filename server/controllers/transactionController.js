@@ -1,51 +1,23 @@
-const Transaction = require('../models/Transaction');
-const User = require('../models/User');
-
-const getPendingRequests = async (req, res) => {
-  try {
-    const requests = await Transaction.find({ parentId: req.user.id, type: 'request', status: 'pending' }).populate('userId', 'name email');
-    res.json(requests);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-const handleRequest = async (req, res) => {
-  const { requestId, status } = req.body;
-  try {
-    const transaction = await Transaction.findById(requestId);
-    if (!transaction || transaction.parentId.toString() !== req.user.id) {
-      return res.status(404).json({ message: 'Request not found or unauthorized' });
-    }
-
-    if (status === 'approved') {
-      const child = await User.findById(transaction.userId);
-      child.wallet += transaction.amount;
-      await child.save();
-      transaction.status = 'approved';
-    } else {
-      transaction.status = 'rejected';
-    }
-
-    await transaction.save();
-    res.json({ message: `Request ${status} successfully` });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
+const { db } = require('../firebase');
 
 const getAllTransactions = async (req, res) => {
   try {
-    // If parent, get all transactions of their children
     if (req.user.role === 'parent') {
-      const children = await User.find({ parentId: req.user.id });
-      const childIds = children.map(c => c._id);
-      const transactions = await Transaction.find({ userId: { $in: childIds } }).populate('userId', 'name').sort({ createdAt: -1 });
+      const childSnap = await db.collection('users').where('parentId', '==', req.user.id).get();
+      const childIds = childSnap.docs.map(d => d.id);
+      if (childIds.length === 0) return res.json([]);
+
+      const txSnap = await db.collection('transactions').where('userId', 'in', childIds).orderBy('createdAt', 'desc').get();
+      const transactions = await Promise.all(txSnap.docs.map(async doc => {
+        const data = { id: doc.id, ...doc.data() };
+        const userDoc = await db.collection('users').doc(data.userId).get();
+        data.userName = userDoc.exists ? userDoc.data().name : 'Unknown';
+        return data;
+      }));
       return res.json(transactions);
     }
-    // If child, get only their own (already handled in child routes, but here for completeness)
-    const transactions = await Transaction.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json(transactions);
+    const txSnap = await db.collection('transactions').where('userId', '==', req.user.id).orderBy('createdAt', 'desc').get();
+    res.json(txSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -54,27 +26,26 @@ const getAllTransactions = async (req, res) => {
 const createSpending = async (req, res) => {
   const { amount, description } = req.body;
   try {
-    const user = await User.findById(req.user.id);
-    if (user.wallet < amount) {
-      return res.status(400).json({ message: 'Insufficient balance' });
-    }
+    const walletRef = db.collection('wallets').doc(req.user.id);
+    const walletDoc = await walletRef.get();
+    const balance = walletDoc.exists ? walletDoc.data().balance : 0;
+    if (balance < Number(amount)) return res.status(400).json({ message: 'Insufficient balance' });
 
-    user.wallet -= Number(amount);
-    await user.save();
+    await walletRef.update({ balance: balance - Number(amount) });
 
-    const transaction = new Transaction({
+    await db.collection('transactions').add({
       userId: req.user.id,
       amount: Number(amount),
       type: 'debit',
       description,
-      status: 'completed'
+      status: 'completed',
+      createdAt: new Date().toISOString()
     });
-    await transaction.save();
 
-    res.json({ message: 'Transaction successful', wallet: user.wallet });
+    res.json({ message: 'Transaction successful', wallet: balance - Number(amount) });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
-module.exports = { getPendingRequests, handleRequest, getAllTransactions, createSpending };
+module.exports = { getAllTransactions, createSpending };

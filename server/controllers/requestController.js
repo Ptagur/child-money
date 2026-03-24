@@ -1,19 +1,22 @@
-const Request = require('../models/Request');
-const Wallet = require('../models/Wallet');
-const Transaction = require('../models/Transaction');
+const { db } = require('../firebase');
 
 const createRequest = async (req, res) => {
   const { amount, description } = req.body;
   try {
-    const request = new Request({
+    const userDoc = await db.collection('users').doc(req.user.id).get();
+    const parentId = userDoc.data().parentId;
+    if (!parentId) return res.status(400).json({ message: 'No parent found' });
+
+    const ref = await db.collection('requests').add({
       childId: req.user.id,
-      parentId: req.user.parentId,
+      parentId,
       amount: Number(amount),
       description,
-      status: 'pending'
+      status: 'pending',
+      createdAt: new Date().toISOString()
     });
-    await request.save();
-    res.json({ message: 'Request sent to parent', request });
+
+    res.json({ message: 'Request sent to parent', request: { id: ref.id } });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -21,8 +24,8 @@ const createRequest = async (req, res) => {
 
 const getChildRequests = async (req, res) => {
   try {
-    const requests = await Request.find({ childId: req.user.id }).sort({ createdAt: -1 });
-    res.json(requests);
+    const snap = await db.collection('requests').where('childId', '==', req.user.id).orderBy('createdAt', 'desc').get();
+    res.json(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -30,7 +33,14 @@ const getChildRequests = async (req, res) => {
 
 const getParentRequests = async (req, res) => {
   try {
-    const requests = await Request.find({ parentId: req.user.id, status: 'pending' }).populate('childId', 'name email');
+    const snap = await db.collection('requests').where('parentId', '==', req.user.id).where('status', '==', 'pending').get();
+    const requests = await Promise.all(snap.docs.map(async doc => {
+      const data = { id: doc.id, ...doc.data() };
+      const childDoc = await db.collection('users').doc(data.childId).get();
+      data.childName = childDoc.exists ? childDoc.data().name : 'Unknown';
+      data.childEmail = childDoc.exists ? childDoc.data().email : '';
+      return data;
+    }));
     res.json(requests);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -40,31 +50,30 @@ const getParentRequests = async (req, res) => {
 const handleRequest = async (req, res) => {
   const { requestId, status } = req.body;
   try {
-    const request = await Request.findById(requestId);
-    if (!request || request.parentId.toString() !== req.user.id) {
+    const reqRef = db.collection('requests').doc(requestId);
+    const reqDoc = await reqRef.get();
+    if (!reqDoc.exists || reqDoc.data().parentId !== req.user.id) {
       return res.status(404).json({ message: 'Request not found' });
     }
 
     if (status === 'approved') {
-      const wallet = await Wallet.findOne({ userId: request.childId });
-      wallet.balance += request.amount;
-      await wallet.save();
+      const walletRef = db.collection('wallets').doc(reqDoc.data().childId);
+      const walletDoc = await walletRef.get();
+      const newBalance = (walletDoc.exists ? walletDoc.data().balance : 0) + reqDoc.data().amount;
+      await walletRef.set({ userId: reqDoc.data().childId, balance: newBalance }, { merge: true });
 
-      const transaction = new Transaction({
-        userId: request.childId,
-        amount: request.amount,
+      await db.collection('transactions').add({
+        userId: reqDoc.data().childId,
+        amount: reqDoc.data().amount,
         type: 'credit',
-        description: `Request Approved: ${request.description}`,
-        parentId: req.user.id
+        description: `Request Approved: ${reqDoc.data().description}`,
+        parentId: req.user.id,
+        status: 'completed',
+        createdAt: new Date().toISOString()
       });
-      await transaction.save();
-
-      request.status = 'approved';
-    } else {
-      request.status = 'rejected';
     }
 
-    await request.save();
+    await reqRef.update({ status });
     res.json({ message: `Request ${status} successfully` });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

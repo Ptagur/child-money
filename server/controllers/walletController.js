@@ -1,29 +1,26 @@
-const Transaction = require('../models/Transaction');
-const Limit = require('../models/Limit');
-const Wallet = require('../models/Wallet');
-const logActivity = require('../utils/logger');
+const { db } = require('../firebase');
 
 const addMoney = async (req, res) => {
   const { childId, amount } = req.body;
   try {
-    const wallet = await Wallet.findOne({ userId: childId });
-    if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+    const walletRef = db.collection('wallets').doc(childId);
+    const walletDoc = await walletRef.get();
+    if (!walletDoc.exists) return res.status(404).json({ message: 'Wallet not found' });
 
-    wallet.balance += Number(amount);
-    await wallet.save();
+    const newBalance = walletDoc.data().balance + Number(amount);
+    await walletRef.update({ balance: newBalance });
 
-    const transaction = new Transaction({
+    await db.collection('transactions').add({
       userId: childId,
       amount: Number(amount),
       type: 'credit',
       description: 'Added by parent',
-      parentId: req.user.id
+      parentId: req.user.id,
+      status: 'completed',
+      createdAt: new Date().toISOString()
     });
-    await transaction.save();
 
-    await logActivity(req, 'Add Money', `Amount: ${amount}, ChildId: ${childId}`);
-
-    res.json({ message: 'Money added successfully', balance: wallet.balance });
+    res.json({ message: 'Money added successfully', balance: newBalance });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -33,47 +30,44 @@ const upiPay = async (req, res) => {
   const { upiId, amount, description } = req.body;
   const userId = req.user.id;
   try {
-    const wallet = await Wallet.findOne({ userId });
-    if (wallet.balance < amount) return res.status(400).json({ message: 'Insufficient balance' });
+    const walletRef = db.collection('wallets').doc(userId);
+    const walletDoc = await walletRef.get();
+    const balance = walletDoc.data().balance;
 
-    // Check Monthly Limit
+    if (balance < Number(amount)) return res.status(400).json({ message: 'Insufficient balance' });
+
     const now = new Date();
-    const limit = await Limit.findOne({ userId, month: now.getMonth(), year: now.getFullYear() });
-    
+    const limitRef = db.collection('limits').doc(userId);
+    const limitDoc = await limitRef.get();
+    const limit = limitDoc.exists ? limitDoc.data() : null;
+
     if (limit && limit.monthlyLimit > 0) {
       if (limit.spentAmount + Number(amount) > limit.monthlyLimit) {
-        return res.status(400).json({ 
-          message: 'Monthly limit exceeded. Please request more allowance from your parent.',
-          limitReached: true 
-        });
+        return res.status(400).json({ message: 'Monthly limit exceeded. Please request more allowance from your parent.', limitReached: true });
       }
     }
 
-    // Deduct from wallet
-    wallet.balance -= Number(amount);
-    await wallet.save();
+    const newBalance = balance - Number(amount);
+    await walletRef.update({ balance: newBalance });
 
-    // Update limit spent
     if (limit) {
-      limit.spentAmount += Number(amount);
-      await limit.save();
+      await limitRef.update({ spentAmount: limit.spentAmount + Number(amount) });
     }
 
-    const transaction = new Transaction({
+    await db.collection('transactions').add({
       userId,
       amount: Number(amount),
       type: 'debit',
       description: `UPI Pay to ${upiId}: ${description || 'No description'}`,
-      status: 'completed'
+      status: 'completed',
+      createdAt: new Date().toISOString()
     });
-    await transaction.save();
 
-    await logActivity(req, 'UPI Payment', `Amount: ${amount}, To: ${upiId}`);
-
-    res.json({ 
-      message: 'UPI Payment Successful!', 
-      balance: wallet.balance, 
-      warning: limit && limit.spentAmount >= limit.monthlyLimit * 0.8 ? 'Warning: You have used 80% of your monthly limit!' : null
+    const updatedLimit = limitDoc.exists ? (await limitRef.get()).data() : null;
+    res.json({
+      message: 'UPI Payment Successful!',
+      balance: newBalance,
+      warning: updatedLimit && updatedLimit.spentAmount >= updatedLimit.monthlyLimit * 0.8 ? 'Warning: You have used 80% of your monthly limit!' : null
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
