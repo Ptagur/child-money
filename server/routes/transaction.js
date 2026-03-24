@@ -1,12 +1,13 @@
 const express = require('express');
-const { getPendingRequests, handleRequest, getAllTransactions, createSpending } = require('../controllers/transactionController');
+const { getAllTransactions, createSpending } = require('../controllers/transactionController');
+const { getParentRequests, handleRequest } = require('../controllers/requestController');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 router.use(authMiddleware);
 
 // Parent only: view pending requests from their children and handle them
-router.get('/pending', roleMiddleware(['parent']), getPendingRequests);
+router.get('/pending', roleMiddleware(['parent']), getParentRequests);
 router.post('/handle-request', roleMiddleware(['parent']), handleRequest);
 
 // Common: view transactions (parent sees kids, kid sees self)

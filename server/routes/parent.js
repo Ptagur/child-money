@@ -13,12 +13,12 @@ router.use(roleMiddleware(['parent']));
 
 router.get('/children', getChildren);
 router.post('/add-money', [
-  body('childId').isMongoId(),
+  body('childId').isString().notEmpty().withMessage('Child ID is required'),
   body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than zero'),
   validate
 ], addMoney);
 router.post('/set-limit', [
-  body('childId').isMongoId(),
+  body('childId').isString().notEmpty().withMessage('Child ID is required'),
   body('monthlyLimit').isFloat({ min: 0 }).withMessage('Monthly limit must be zero or more'),
   validate
 ], setLimit);
