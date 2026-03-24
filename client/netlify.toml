@@ -1,0 +1,5 @@
+# Netlify redirects — needed for React Router (SPA)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
