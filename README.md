@@ -38,7 +38,7 @@ A professional full-stack web application designed to teach children financial r
 
 ### 1. Prerequisites
 - Node.js v18+
-- MongoDB installed locally OR a MongoDB Atlas URI
+- firebase installed locally fairbase URL
 
 ### 2. Installation
 ```bash
