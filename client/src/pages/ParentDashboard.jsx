@@ -7,6 +7,7 @@ import Sidebar from '../components/Sidebar'
 import StatCard from '../components/StatCard'
 import AddChildModal from '../components/AddChildModal'
 import AddMoneyModal from '../components/AddMoneyModal'
+import TopUpModal from '../components/TopUpModal'
 import PendingRequests from '../components/PendingRequests'
 import ChildList from '../components/ChildList'
 import BankDetails from '../components/BankDetails'
@@ -23,6 +24,7 @@ const ParentDashboard = () => {
   const [pendingRequests, setPendingRequests] = useState([])
   const [isAddChildOpen, setIsAddChildOpen] = useState(false)
   const [isAddMoneyOpen, setIsAddMoneyOpen] = useState(false)
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false)
   const [parentBalance, setParentBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -108,10 +110,16 @@ const ParentDashboard = () => {
               </span>
             </div>
 
-            <div className="flex items-baseline gap-2 mt-4">
+            <div className="flex items-center gap-4 mt-4">
               <h1 className="text-6xl sm:text-7xl font-display font-medium tracking-tight text-slate-900 dark:text-white">
                 ₹{totalBalance.toLocaleString()}
               </h1>
+              <button
+                onClick={() => setIsTopUpOpen(true)}
+                className="ml-auto bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-5 py-2.5 text-sm font-bold flex items-center gap-2 shadow-[0_8px_30px_rgb(16,185,129,0.3)] transition-all hover:scale-105 active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4" /> Top Up Vault
+              </button>
             </div>
             <p className="text-slate-500 dark:text-slate-400 mt-4 text-sm font-medium">
               Your available balance for funding {children.length} connected accounts.
@@ -210,6 +218,11 @@ const ParentDashboard = () => {
         onClose={() => setIsAddMoneyOpen(false)}
         childrenList={children}
         onMoneyAdded={fetchData}
+      />
+      <TopUpModal
+        isOpen={isTopUpOpen}
+        onClose={() => setIsTopUpOpen(false)}
+        onTopUp={fetchData}
       />
     </div>
   )

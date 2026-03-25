@@ -10,6 +10,34 @@ const getWalletBalance = async (req, res) => {
   }
 };
 
+const depositToWallet = async (req, res) => {
+  const { amount } = req.body;
+  const parentId = req.user.id;
+  try {
+    const parentWalletRef = db.collection('wallets').doc(parentId);
+    const parentWalletDoc = await parentWalletRef.get();
+    
+    // Create wallet if it doesn't exist yet, else update
+    const currentBalance = parentWalletDoc.exists ? parentWalletDoc.data().balance : 0;
+    const newBalance = currentBalance + Number(amount);
+    
+    await parentWalletRef.set({ userId: parentId, balance: newBalance }, { merge: true });
+
+    await db.collection('transactions').add({
+      userId: parentId,
+      amount: Number(amount),
+      type: 'credit', // credit to parent's vault
+      description: 'Deposited to Family Vault from Bank',
+      status: 'completed',
+      createdAt: new Date().toISOString()
+    });
+
+    res.json({ message: 'Deposit successful', balance: newBalance });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 const addMoney = async (req, res) => {
   const { childId, amount } = req.body;
   const parentId = req.user.id;
@@ -106,4 +134,4 @@ const upiPay = async (req, res) => {
   }
 };
 
-module.exports = { addMoney, upiPay, getWalletBalance };
+module.exports = { addMoney, upiPay, getWalletBalance, depositToWallet };
