@@ -5,10 +5,19 @@ const getAllTransactions = async (req, res) => {
     if (req.user.role === 'parent') {
       const childSnap = await db.collection('users').where('parentId', '==', req.user.id).get();
       const childIds = childSnap.docs.map(d => d.id);
-      if (childIds.length === 0) return res.json([]);
+      
+      const parentTxSnap = await db.collection('transactions').where('userId', '==', req.user.id).get();
+      let allTxDocs = [...parentTxSnap.docs];
 
-      const txSnap = await db.collection('transactions').where('userId', 'in', childIds).orderBy('createdAt', 'desc').get();
-      const transactions = await Promise.all(txSnap.docs.map(async doc => {
+      for (let i = 0; i < childIds.length; i += 10) {
+        const chunk = childIds.slice(i, i + 10);
+        const childTxSnap = await db.collection('transactions').where('userId', 'in', chunk).get();
+        allTxDocs = [...allTxDocs, ...childTxSnap.docs];
+      }
+
+      allTxDocs.sort((a, b) => new Date(b.data().createdAt) - new Date(a.data().createdAt));
+
+      const transactions = await Promise.all(allTxDocs.map(async doc => {
         const data = { id: doc.id, ...doc.data() };
         const userDoc = await db.collection('users').doc(data.userId).get();
         data.userName = userDoc.exists ? userDoc.data().name : 'Unknown';

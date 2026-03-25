@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import api from '../utils/api'
-import { History, ArrowUpRight, ArrowDownLeft, Clock, Search } from 'lucide-react'
+import { History, ArrowUpRight, ArrowDownLeft, Clock, Search, Building, Send, CreditCard, Sparkles } from 'lucide-react'
 
 const ParentTransactionHistory = () => {
   const [transactions, setTransactions] = useState([])
@@ -27,78 +28,126 @@ const ParentTransactionHistory = () => {
   )
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 transition-colors">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">All Transactions</h2>
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 p-6 md:p-8 transition-colors flex flex-col min-h-[60vh]"
+    >
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+        <div>
+          <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            Activity History
+            <Sparkles className="w-5 h-5 text-indigo-400" />
+          </h2>
+          <p className="text-sm font-medium text-slate-500 mt-1">Track family spendings, deposits, and transfers.</p>
+        </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name or description..."
+            placeholder="Search activity..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 border border-gray-200 dark:border-slate-700/50 bg-white dark:bg-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm w-full md:w-64 dark:text-gray-200"
+            className="pl-11 pr-4 py-3 border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-2xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 text-sm w-full md:w-80 dark:text-white font-medium transition-all"
           />
         </div>
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-gray-500">Loading transactions...</div>
+        <div className="flex-1 flex flex-col items-center justify-center py-12 text-slate-400">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+            <Clock className="w-8 h-8 opacity-50" />
+          </motion.div>
+          <p className="mt-4 font-semibold text-sm tracking-widest uppercase">Fetching Records...</p>
+        </div>
       ) : filteredTransactions.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">
-          <History className="h-12 w-12 mx-auto mb-2 opacity-20" />
-          <p>No transactions found</p>
+        <div className="flex-1 flex flex-col items-center justify-center py-12 text-slate-400">
+          <History className="h-16 w-16 mb-4 opacity-20" strokeWidth={1} />
+          <p className="font-semibold text-lg text-slate-600 dark:text-slate-300">No activity found</p>
+          <p className="text-sm text-slate-500 mt-1">Looks like it's quiet right now.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-slate-800">
-                <th className="pb-3 font-semibold text-gray-600 dark:text-gray-400 text-sm">Child</th>
-                <th className="pb-3 font-semibold text-gray-600 dark:text-gray-400 text-sm">Description</th>
-                <th className="pb-3 font-semibold text-gray-600 text-sm">Type</th>
-                <th className="pb-3 font-semibold text-gray-600 text-sm">Amount</th>
-                <th className="pb-3 font-semibold text-gray-600 text-sm">Date</th>
-                <th className="pb-3 font-semibold text-gray-600 text-sm">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
-              {filteredTransactions.map((t) => (
-                <tr key={t._id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{t.userId?.name || 'Deleted User'}</td>
-                  <td className="py-4 text-sm text-gray-500">{t.description}</td>
-                  <td className="py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
-                      t.type === 'credit' ? 'bg-green-100 text-green-700' : 
-                      t.type === 'debit' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {t.type === 'credit' ? <ArrowDownLeft className="h-3 w-3" /> : 
-                       t.type === 'debit' ? <ArrowUpRight className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                      <span className="capitalize">{t.type}</span>
+        <div className="flex flex-col gap-3">
+          <AnimatePresence>
+            {filteredTransactions.map((t, index) => {
+              // Determine aesthetics based on transaction type/description
+              let ActionIcon = Clock;
+              let iconBg = 'bg-slate-100 dark:bg-slate-800';
+              let iconColor = 'text-slate-500';
+              let amountColor = 'text-slate-900 dark:text-white';
+              let amountPrefix = '';
+
+              if (t.description.includes('Deposited to Family Vault')) {
+                ActionIcon = Building;
+                iconBg = 'bg-emerald-100 dark:bg-emerald-900/30';
+                iconColor = 'text-emerald-600 dark:text-emerald-400';
+                amountColor = 'text-emerald-600 dark:text-emerald-400';
+                amountPrefix = '+';
+              } else if (t.description.includes('Transferred to child')) {
+                ActionIcon = Send;
+                iconBg = 'bg-indigo-100 dark:bg-indigo-900/30';
+                iconColor = 'text-indigo-600 dark:text-indigo-400';
+                amountColor = 'text-slate-900 dark:text-white';
+                amountPrefix = '-';
+              } else if (t.description.includes('Added by parent')) {
+                ActionIcon = ArrowDownLeft;
+                iconBg = 'bg-emerald-100 dark:bg-emerald-900/30';
+                iconColor = 'text-emerald-600 dark:text-emerald-400';
+                amountColor = 'text-emerald-600 dark:text-emerald-400';
+                amountPrefix = '+';
+              } else if (t.type === 'debit') {
+                ActionIcon = CreditCard;
+                iconBg = 'bg-rose-100 dark:bg-rose-900/30';
+                iconColor = 'text-rose-600 dark:text-rose-400';
+                amountColor = 'text-rose-600 dark:text-rose-400';
+                amountPrefix = '-';
+              }
+
+              return (
+                <motion.div
+                  key={t._id || t.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-500/30 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${iconBg} transition-colors group-hover:scale-110 duration-300`}>
+                      <ActionIcon className={`w-6 h-6 ${iconColor}`} strokeWidth={2} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white text-base">
+                        {t.description}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase tracking-wider">
+                          {t.userName || t.userId?.name || 'Vault'}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-400">
+                          • {new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {' '}{new Date(t.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 sm:mt-0 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center">
+                    <span className={`text-xl sm:text-lg font-bold ${amountColor}`}>
+                      {amountPrefix}₹{t.amount.toLocaleString()}
                     </span>
-                  </td>
-                  <td className={`py-4 text-sm font-bold ${
-                    t.type === 'credit' ? 'text-green-600' : 
-                    t.type === 'debit' ? 'text-red-600' : 'text-amber-600'
-                  }`}>
-                    {t.type === 'credit' ? '+' : t.type === 'debit' ? '-' : ''}₹{t.amount}
-                  </td>
-                  <td className="py-4 text-sm text-gray-500">{new Date(t.createdAt).toLocaleDateString()}</td>
-                  <td className="py-4">
-                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${
-                      t.status === 'approved' || t.status === 'completed' ? 'text-green-600' : 
-                      t.status === 'rejected' ? 'text-red-600' : 'text-amber-600'
-                    }`}>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mt-1">
                       {t.status}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 
