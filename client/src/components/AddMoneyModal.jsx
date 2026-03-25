@@ -71,7 +71,7 @@ const AddMoneyModal = ({ isOpen, onClose, childrenList = [], onMoneyAdded }) => 
   if (step === 1) return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={sheetStyle} onClick={e => e.stopPropagation()}>
-        <div style={{ background: '#fff', minHeight: '65vh', display: 'flex', flexDirection: 'column' }} className="dark:bg-slate-900">
+        <div style={{ minHeight: '65vh', display: 'flex', flexDirection: 'column' }} className="bg-white dark:bg-slate-900">
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">💸 Send Money</h2>
@@ -211,7 +211,7 @@ const AddMoneyModal = ({ isOpen, onClose, childrenList = [], onMoneyAdded }) => 
   if (step === 3) return (
     <div style={overlayStyle}>
       <div style={sheetStyle} onClick={e => e.stopPropagation()}>
-        <div style={{ background: '#fff', minHeight: '65vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '24px', padding: '32px', textAlign: 'center' }} className="dark:bg-slate-900">
+        <div style={{ minHeight: '65vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '24px', padding: '32px', textAlign: 'center' }} className="bg-white dark:bg-slate-900">
           <div style={{ position: 'relative', width: 112, height: 112 }}>
             <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '4px solid #e2e8f0' }} />
             <motion.div

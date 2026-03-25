@@ -23,17 +23,20 @@ const ParentDashboard = () => {
   const [pendingRequests, setPendingRequests] = useState([])
   const [isAddChildOpen, setIsAddChildOpen] = useState(false)
   const [isAddMoneyOpen, setIsAddMoneyOpen] = useState(false)
+  const [parentBalance, setParentBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   const fetchData = async () => {
     try {
-      const [childRes, reqRes] = await Promise.all([
+      const [childRes, reqRes, walletRes] = await Promise.all([
         api.get('/parent/children'),
-        api.get('/transactions/pending')
+        api.get('/transactions/pending'),
+        api.get('/parent/wallet')
       ])
       setChildren(childRes.data)
       setPendingRequests(reqRes.data)
+      setParentBalance(walletRes.data.balance)
     } catch (err) {
       console.error(err)
     } finally {
@@ -47,7 +50,7 @@ const ParentDashboard = () => {
 
   if (loading) return <DashboardSkeleton />
 
-  const totalBalance = children.reduce((acc, child) => acc + child.wallet, 0)
+  const totalBalance = parentBalance
   const totalLimit = children.reduce((acc, child) => acc + (child.monthlyLimit || 0), 0)
 
   const chartData = {
@@ -111,7 +114,7 @@ const ParentDashboard = () => {
               </h1>
             </div>
             <p className="text-slate-500 dark:text-slate-400 mt-4 text-sm font-medium">
-              Safely distributed across {children.length} connected accounts.
+              Your available balance for funding {children.length} connected accounts.
             </p>
           </div>
 

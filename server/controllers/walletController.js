@@ -1,21 +1,53 @@
 const { db } = require('../firebase');
 
+const getWalletBalance = async (req, res) => {
+  try {
+    const walletDoc = await db.collection('wallets').doc(req.user.id).get();
+    const balance = walletDoc.exists ? walletDoc.data().balance : 0;
+    res.json({ balance });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 const addMoney = async (req, res) => {
   const { childId, amount } = req.body;
+  const parentId = req.user.id;
   try {
+    const parentWalletRef = db.collection('wallets').doc(parentId);
+    const parentWalletDoc = await parentWalletRef.get();
+    const parentBalance = parentWalletDoc.exists ? parentWalletDoc.data().balance : 0;
+
+    if (parentBalance < Number(amount)) {
+      return res.status(400).json({ message: 'Insufficient Family Vault balance. Please add funds to your wallet first.' });
+    }
+
     const walletRef = db.collection('wallets').doc(childId);
     const walletDoc = await walletRef.get();
     if (!walletDoc.exists) return res.status(404).json({ message: 'Wallet not found' });
 
+    const newParentBalance = parentBalance - Number(amount);
+    await parentWalletRef.update({ balance: newParentBalance });
+
     const newBalance = walletDoc.data().balance + Number(amount);
     await walletRef.update({ balance: newBalance });
+
+    await db.collection('transactions').add({
+      userId: parentId,
+      amount: Number(amount),
+      type: 'transfer_out',
+      description: 'Transferred to child',
+      childId: childId,
+      status: 'completed',
+      createdAt: new Date().toISOString()
+    });
 
     await db.collection('transactions').add({
       userId: childId,
       amount: Number(amount),
       type: 'credit',
       description: 'Added by parent',
-      parentId: req.user.id,
+      parentId: parentId,
       status: 'completed',
       createdAt: new Date().toISOString()
     });
@@ -74,4 +106,4 @@ const upiPay = async (req, res) => {
   }
 };
 
-module.exports = { addMoney, upiPay };
+module.exports = { addMoney, upiPay, getWalletBalance };
